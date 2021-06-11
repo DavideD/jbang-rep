@@ -1,0 +1,9 @@
+{
+  "catalogs": {},
+  "aliases": {
+    "stage-verticle": {
+      "script-ref": "StageVerticle.java",
+      "description": ""
+    }
+  }
+}
