@@ -1,6 +1,10 @@
 {
   "catalogs": {},
   "aliases": {
+    "proxysql": {
+      "script-ref": "proxysql.java",
+      "description": ""
+    },
     "stage-verticle": {
       "script-ref": "StageVerticle.java",
       "description": ""
