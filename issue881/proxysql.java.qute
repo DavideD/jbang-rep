@@ -76,7 +76,7 @@ public class {baseName} {
 		// (Optional) Log the SQL queries
 		configuration.setProperty( Settings.SHOW_SQL, "true" );
 		configuration.setProperty( Settings.HIGHLIGHT_SQL, "true" );
-		configuration.setProperty( Settings.FORMAT_SQL, "true" );
+		configuration.setProperty( Settings.FORMAT_SQL, "false" );
 		return configuration;
 	}
 

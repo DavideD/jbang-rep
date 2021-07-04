@@ -5,9 +5,9 @@
  * Copyright: Red Hat Inc. and Hibernate Authors
  */
 
-//DEPS io.vertx:vertx-mysql-client:${vertx.version:4.1.0}
-//DEPS io.vertx:vertx-unit:${vertx.version:4.1.0}
-//DEPS org.hibernate.reactive:hibernate-reactive-core:${hibernate-reactive.version:1.0.0.CR6}
+//DEPS io.vertx:vertx-mysql-client:${vertx.version:4.1.1}
+//DEPS io.vertx:vertx-unit:${vertx.version:4.1.1}
+//DEPS org.hibernate.reactive:hibernate-reactive-core:${hibernate-reactive.version:1.0.0.CR7}
 //DEPS org.assertj:assertj-core:3.19.0
 //DEPS junit:junit:4.13.2
 //DEPS org.testcontainers:mysql:1.15.3
@@ -17,8 +17,16 @@
 //// Hibernate Reactive doesn't need it
 //DEPS mysql:mysql-connector-java:8.0.25
 
+import java.io.Serializable;
+import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.JoinColumn;
+import javax.persistence.ManyToOne;
+import javax.persistence.Table;
 
 import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
@@ -29,39 +37,30 @@ import org.hibernate.reactive.provider.Settings;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.JUnitCore;
 import org.junit.runner.Result;
 import org.junit.runner.RunWith;
 import org.junit.runner.notification.Failure;
 
-import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
+import org.testcontainers.containers.MySQLContainer;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-//DESCRIPTION An example of a JUnit test class for Hibernate Reactive using
-//DESCRIPTION [Vert.x Unit](https://vertx.io/docs/vertx-unit/java),
-//DESCRIPTION [Testcontainers](https://www.testcontainers.org)
-//DESCRIPTION and [MySQL](https://www.mysql.com/)
-//DESCRIPTION that you can run using [JBang](JBang).
-//DESCRIPTION
-//DESCRIPTION Before running the tests, Testcontainers will start the selected
-//DESCRIPTION Docker image with the required database created.
-//DESCRIPTION
-//DESCRIPTION The `DATABASE` constant define which database to use and
-//DESCRIPTION it can be change to any of the values in `Database`.
-//DESCRIPTION
-//DESCRIPTION Usage example:
-//DESCRIPTION   1. Use as jbang template `jbang init -t mysql-reproducer@hibernate/hibernate-reactive mytest.java`
-//DESCRIPTION   2. Run the test with JBang: `jbang mytest.java`
-//DESCRIPTION   3. (Optional) Edit the file (with IntelliJ IDEA for example):
-//DESCRIPTION             jbang edit --live --open=idea mytest.java
 @RunWith(VertxUnitRunner.class)
 public class Issue886 {
 
+	@ClassRule
+	public static MySQLContainer<?> database = new MySQLContainer<>( "mysql:8.0.25" );
+
 	private Mutiny.SessionFactory sessionFactory;
+
+	@BeforeClass
+	public static void startContainer() {
+		database.start();
+	}
 
 	/**
 	 * The {@link Configuration} for the {@link Mutiny.SessionFactory}.
@@ -70,17 +69,18 @@ public class Issue886 {
 		Configuration configuration = new Configuration();
 
 		// JDBC url
-		configuration.setProperty( Settings.URL, "jdbc:mysql://127.0.0.1us:6033/hreact" );
+		configuration.setProperty( Settings.URL, database.getJdbcUrl() );
 
 		// Credentials
-		configuration.setProperty( Settings.USER, "hreact" );
-		configuration.setProperty( Settings.PASS, "hreact" );
+		configuration.setProperty( Settings.USER, database.getUsername() );
+		configuration.setProperty( Settings.PASS, database.getPassword() );
 
 		// Schema generation. Supported values are create, drop, create-drop, drop-create, none
 		configuration.setProperty( Settings.HBM2DDL_AUTO, "create" );
 
 		// Register new entity classes here
-		configuration.addAnnotatedClass( MyEntity.class );
+		configuration.addAnnotatedClass( SampleEntity.class );
+		configuration.addAnnotatedClass( SampleJoinEntity.class );
 
 		// (Optional) Log the SQL queries
 		configuration.setProperty( Settings.SHOW_SQL, "true" );
@@ -112,21 +112,39 @@ public class Issue886 {
 
 	@Test
 	public void testInsertAndSelect(TestContext context) {
-		// the test will wait until async.complete or context.fail are called
-		Async async = context.async();
+		SampleEntity sampleEntity = new SampleEntity();
+		sampleEntity.sampleField = "test";
 
-		MyEntity entity = new MyEntity( "first entity", 1 );
-		sessionFactory
-				// insert the entity in the database
-				.withTransaction( (session, tx) -> session.persist( entity ) )
-				.chain( () -> sessionFactory
-						.withSession( session -> session
-								// look for the entity by id
-								.find( MyEntity.class, entity.getId() )
-								// assert that the returned entity is the right one
-								.invoke( foundEntity -> assertThat( foundEntity.getName() ).isEqualTo( entity.getName() ) ) ) )
-				.subscribe()
-				.with( res -> async.complete(), context::fail );
+		sessionFactory.withTransaction( (session, transaction) ->
+												session.persist( sampleEntity )
+		).await().indefinitely();
+
+		SampleJoinEntity sampleJoinEntity = new SampleJoinEntity();
+		sampleJoinEntity.sampleEntity = sampleEntity;
+
+		sessionFactory.withTransaction( (session, transaction) ->
+												session.persist( sampleJoinEntity )
+		).await().indefinitely();
+
+
+		Long targetId = sampleJoinEntity.id;
+
+		SampleJoinEntity sampleJoinEntityFromDatabase = sessionFactory
+				.withTransaction( (session, transaction) -> session
+						.find( SampleJoinEntity.class, targetId )
+						.call( (entity) -> session
+								.fetch( entity.sampleEntity ) )
+				).await().indefinitely();
+
+
+		SampleEntity sampleEntityFromDatabase = sampleJoinEntityFromDatabase.sampleEntity;
+		sampleEntityFromDatabase.sampleField = "test";
+
+// EXCEPTION IS HERE!
+		sessionFactory.withStatelessTransaction( (session, transaction) -> session
+				.update( sampleEntityFromDatabase )
+		).await().indefinitely();
+
 	}
 
 	@After
@@ -136,49 +154,32 @@ public class Issue886 {
 		}
 	}
 
-	/**
-	 * Example of a class representing an entity.
-	 * <p>
-	 * If you create new entities, be sure to add them in .
-	 * For example:
-	 * <pre>
-	 * configuration.addAnnotatedClass( MyOtherEntity.class );
-	 * </pre>
-	 */
-	@Entity(name = "MyEntity")
-	public static class MyEntity {
+	@Entity(name = "SampleEntity")
+	@Table(name = "sample_entities")
+	public static class SampleEntity implements Serializable {
 		@Id
-		public Integer id;
+		@GeneratedValue(strategy = GenerationType.IDENTITY)
+		public Long id;
 
-		public String name;
+		@Column(name = "sample_field")
+		public String sampleField;
+	}
 
-		public MyEntity() {
-		}
+	@Entity(name = "SampleJoinEntity")
+	@Table(name = "sample_join_entities")
+	public static class SampleJoinEntity implements Serializable {
+		@Id
+		@GeneratedValue(strategy = GenerationType.IDENTITY)
+		public Long id;
 
-		public MyEntity(String name, Integer id) {
-			this.name = name;
-			this.id = id;
-		}
-
-		public Integer getId() {
-			return id;
-		}
-
-		public String getName() {
-			return name;
-		}
-
-		@Override
-		public String toString() {
-			return "MyEntity"
-					+ "\n\t id = " + id
-					+ "\n\t name = " + name;
-		}
+		@ManyToOne(fetch = FetchType.LAZY)
+		@JoinColumn(name = "sample_entity_id", referencedColumnName = "id")
+		public SampleEntity sampleEntity;
 	}
 
 	// This main class is only for JBang so that it can run the tests with `jbang Issue886.java`
 	public static void main(String[] args) {
-		System.out.println( "Starting the test suite with MySQL");
+		System.out.println( "Starting the test suite with MySQL" );
 
 		Result result = JUnitCore.runClasses( Issue886.class );
 
@@ -189,7 +190,7 @@ public class Issue886 {
 		}
 
 		System.out.println();
-		System.out.print("Tests result summary: ");
+		System.out.print( "Tests result summary: " );
 		System.out.println( result.wasSuccessful() ? "SUCCESS" : "FAILURE" );
 	}
 }

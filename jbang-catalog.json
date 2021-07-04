@@ -4,6 +4,10 @@
     "stage-verticle": {
       "script-ref": "StageVerticle.java",
       "description": ""
+    },
+    "issue886": {
+      "script-ref": "Issue886.java",
+      "description": ""
     }
   },
   "templates": {
