@@ -5,9 +5,9 @@
  * Copyright: Red Hat Inc. and Hibernate Authors
  */
 
-//DEPS io.vertx:vertx-mysql-client:${vertx.version:4.1.0}
-//DEPS io.vertx:vertx-unit:${vertx.version:4.1.0}
-//DEPS org.hibernate.reactive:hibernate-reactive-core:${hibernate-reactive.version:1.0.0.CR6}
+//DEPS io.vertx:vertx-mysql-client:$\{vertx.version:4.1.1}
+//DEPS io.vertx:vertx-unit:$\{vertx.version:4.1.1}
+//DEPS org.hibernate.reactive:hibernate-reactive-core:$\{hibernate-reactive.version:1.0.0.CR7}
 //DEPS org.assertj:assertj-core:3.19.0
 //DEPS junit:junit:4.13.2
 //DEPS org.testcontainers:mysql:1.15.3
@@ -20,6 +20,7 @@
 import java.time.LocalTime;
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
 
 import org.hibernate.boot.registry.StandardServiceRegistry;
@@ -31,51 +32,36 @@ import org.hibernate.reactive.provider.Settings;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.JUnitCore;
 import org.junit.runner.Result;
 import org.junit.runner.RunWith;
 import org.junit.runner.notification.Failure;
 
+import io.smallrye.mutiny.Uni;
 import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
-import org.testcontainers.containers.MySQLContainer;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-//DESCRIPTION An example of a JUnit test class for Hibernate Reactive using
-//DESCRIPTION [Vert.x Unit](https://vertx.io/docs/vertx-unit/java),
-//DESCRIPTION [Testcontainers](https://www.testcontainers.org)
-//DESCRIPTION and [MySQL](https://www.mysql.com/)
-//DESCRIPTION that you can run using [JBang](JBang).
-//DESCRIPTION
-//DESCRIPTION Before running the tests, Testcontainers will start the selected
-//DESCRIPTION Docker image with the required database created.
-//DESCRIPTION
-//DESCRIPTION The `DATABASE` constant define which database to use and
-//DESCRIPTION it can be change to any of the values in `Database`.
-//DESCRIPTION
 //DESCRIPTION Usage example:
-//DESCRIPTION   1. Use as jbang template `jbang init -t mysql-reproducer@hibernate/hibernate-reactive mytest.java`
-//DESCRIPTION   2. Run the test with JBang: `jbang mytest.java`
+//DESCRIPTION   1. Use as jbang template `jbang init -t issue881@DavideD/jbang-rep Issue881.java`
+//DESCRIPTION   2. Start docker images with: `docker-compose up`
+//DESCRIPTION   2. Run the test with JBang: `jbang Issue881.java`
 //DESCRIPTION   3. (Optional) Edit the file (with IntelliJ IDEA for example):
-//DESCRIPTION             jbang edit --live --open=idea mytest.java
+//DESCRIPTION             jbang edit --live --open=idea Issue881.java
 @RunWith(VertxUnitRunner.class)
-public class proxysql {
+public class {baseName} {
 
 	private Mutiny.SessionFactory sessionFactory;
 
 	/**
-	 * The {@link Configuration} for the {@link Mutiny.SessionFactory}.
+	 * The \{@link Configuration} for the \{@link Mutiny.SessionFactory}.
 	 */
 	private Configuration createConfiguration() {
 		Configuration configuration = new Configuration();
 
 		// JDBC url
-		configuration.setProperty( Settings.URL, "jdbc:mysql://localhost:3306/hreact" );
+		configuration.setProperty( Settings.URL, "mysql://127.0.0.1:6033/hreact" );
 
 		// Credentials
 		configuration.setProperty( Settings.USER, "hreact" );
@@ -116,25 +102,30 @@ public class proxysql {
 	}
 
 	@Test
-	public void testInsertAndSelect(TestContext context) {
+	public void testLocalTime(TestContext context) {
 		// the test will wait until async.complete or context.fail are called
 		Async async = context.async();
 
-		MyEntity entity = new MyEntity( "first entity", 1 );
-		entity.time = LocalTime.of( 0, 0, 0 );
-
-		sessionFactory
-				// insert the entity in the database
-				.withTransaction( (session, tx) -> session.persist( entity ) )
-				.chain( () -> sessionFactory
-						.withSession( session -> session
-								// look for the entity by id
-								.find( MyEntity.class, entity.getId() )
-								// assert that the returned entity is the right one
-								.invoke( foundEntity -> assertThat( foundEntity.time ).isEqualTo( LocalTime.of( 0,0,0,0 ) ) ) ) )
+		sessionFactory.withTransaction( {baseName}::createEntities )
+				// Check if sometimes the time is saved with the wrong value
+				.chain( () -> sessionFactory.withSession( session -> session
+						.createQuery( "from MyEntity e where e.time!='00:00'" )
+						.getResultList() ) )
+				.invoke( list -> context.assertTrue( list.isEmpty() ) )
 				.subscribe()
 				.with( res -> async.complete(), context::fail );
 	}
+
+	private static Uni<Void> createEntities(Mutiny.Session session, Mutiny.Transaction tx) {
+		Uni<Void> loop = Uni.createFrom().voidItem();
+		for ( int i = 0; i < 1000; i++ ) {
+			final MyEntity entity = new MyEntity();
+			loop = loop.chain( () -> session.persist( entity )
+					.invoke( () -> System.out.println( "Entity id: " + entity.getId() ) ) );
+		}
+		return loop;
+	}
+
 
 	@After
 	public void closeFactory() {
@@ -155,12 +146,13 @@ public class proxysql {
 	@Entity(name = "MyEntity")
 	public static class MyEntity {
 		@Id
-		private Integer id;
+		@GeneratedValue
+		public Integer id;
 
-		private String name;
+		public String name;
 
 		@Column(name = "time")
-		public LocalTime time;
+		private LocalTime time = LocalTime.of( 0, 0 );
 
 		public MyEntity() {
 		}
@@ -186,11 +178,11 @@ public class proxysql {
 		}
 	}
 
-	// This main class is only for JBang so that it can run the tests with `jbang proxysql.java`
+	// This main class is only for JBang so that it can run the tests with `jbang {baseName}.java`
 	public static void main(String[] args) {
 		System.out.println( "Starting the test suite with MySQL");
 
-		Result result = JUnitCore.runClasses( proxysql.class );
+		Result result = JUnitCore.runClasses( {baseName}.class );
 
 		for ( Failure failure : result.getFailures() ) {
 			System.out.println();
@@ -203,3 +195,4 @@ public class proxysql {
 		System.out.println( result.wasSuccessful() ? "SUCCESS" : "FAILURE" );
 	}
 }
+

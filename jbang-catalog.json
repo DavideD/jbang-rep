@@ -1,13 +1,18 @@
 {
   "catalogs": {},
   "aliases": {
-    "proxysql": {
-      "script-ref": "proxysql.java",
-      "description": ""
-    },
     "stage-verticle": {
       "script-ref": "StageVerticle.java",
       "description": ""
+    }
+  },
+  "templates": {
+    "issue881": {
+      "file-refs": {
+        "{baseName}.java": "issue881/proxysql.java.qute",
+        "docker-compose.yml": "issue881/docker-compose.yml",
+        "proxysql.cnf": "issue881/proxysql.cnf"
+      }
     }
   }
 }

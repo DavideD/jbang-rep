@@ -1,0 +1,21 @@
+version: '3.0'
+services:
+  mysql:
+    image: mysql:8.0.25
+    restart: always
+    environment:
+      - "MYSQL_ROOT_PASSWORD=hreact"
+      - "MYSQL_DATABASE=hreact"
+      - "MYSQL_USER=hreact"
+      - "MYSQL_PASSWORD=hreact"
+    ports:
+      - "3306:3306"
+  proxysql:
+    image: proxysql/proxysql
+    restart: always
+    volumes:
+      - "./proxysql.cnf:/etc/proxysql.cnf"
+    ports:
+      - "6033:6033"
+      - "6032:6032"
+
