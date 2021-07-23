@@ -54,7 +54,7 @@ import org.testcontainers.containers.MSSQLServerContainer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class ORMStandaloneTestCase {
+public class ORMIssue886 {
 
 	private static final Database DATABASE = Database.H2;
 

@@ -134,16 +134,16 @@ public class Issue886 {
 						.find( SampleJoinEntity.class, targetId )
 						.call( (entity) -> session
 								.fetch( entity.sampleEntity ) )
-				).await().indefinitely();
+				)
+				.await().indefinitely();
 
 
 		SampleEntity sampleEntityFromDatabase = sampleJoinEntityFromDatabase.sampleEntity;
 		sampleEntityFromDatabase.sampleField = "test";
 
 // EXCEPTION IS HERE!
-		sessionFactory.withStatelessTransaction( (session, transaction) -> session
-				.update( sampleEntityFromDatabase )
-		).await().indefinitely();
+		sessionFactory.withStatelessTransaction( (session, transaction) -> session.update( sampleEntityFromDatabase ) )
+				.await().indefinitely();
 
 	}
 
