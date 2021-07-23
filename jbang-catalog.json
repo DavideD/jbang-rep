@@ -8,6 +8,9 @@
     "issue886": {
       "script-ref": "Issue886.java",
       "description": ""
+    },
+    "orm-issue886": {
+      "script-ref": "ORMIssue886.java"
     }
   },
   "templates": {
