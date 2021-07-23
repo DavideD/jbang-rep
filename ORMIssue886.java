@@ -232,7 +232,7 @@ public class ORMIssue886 {
 	public static void main(String[] args) {
 		System.out.println( "Starting the test suite" );
 
-		Result result = JUnitCore.runClasses( ORMStandaloneTestCase.class );
+		Result result = JUnitCore.runClasses( ORMIssue886.class );
 
 		for ( Failure failure : result.getFailures() ) {
 			System.out.println();
