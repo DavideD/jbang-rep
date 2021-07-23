@@ -54,7 +54,7 @@ import org.testcontainers.containers.MSSQLServerContainer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class ORMIssue886 {
+public class ORMStatelessUpdateProxy {
 
 	private static final Database DATABASE = Database.H2;
 
@@ -232,7 +232,7 @@ public class ORMIssue886 {
 	public static void main(String[] args) {
 		System.out.println( "Starting the test suite" );
 
-		Result result = JUnitCore.runClasses( ORMIssue886.class );
+		Result result = JUnitCore.runClasses( ORMStatelessUpdateProxy.class );
 
 		for ( Failure failure : result.getFailures() ) {
 			System.out.println();
