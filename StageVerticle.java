@@ -1,10 +1,10 @@
 ///usr/bin/env jbang "$0" "$@" ; exit $?
-//DEPS org.hibernate.reactive:hibernate-reactive-core:1.0.0.CR6
-//DEPS io.vertx:vertx-pg-client:4.1.0
-//DEPS io.vertx:vertx-web:4.1.0
+//DEPS org.hibernate.reactive:hibernate-reactive-core:1.0.0.CR10
+//DEPS io.vertx:vertx-pg-client:4.1.5
+//DEPS io.vertx:vertx-web:4.1.5
 //DEPS com.fasterxml.jackson.core:jackson-databind:2.12.3
 //DEPS ch.qos.logback:logback-classic:1.2.3
-//DEPS org.testcontainers:postgresql:1.15.3
+//DEPS org.testcontainers:postgresql:1.16.0
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -21,6 +21,7 @@ import org.hibernate.cfg.Configuration;
 import org.hibernate.reactive.provider.ReactiveServiceRegistryBuilder;
 import org.hibernate.reactive.provider.Settings;
 import org.hibernate.reactive.stage.Stage;
+import org.hibernate.reactive.vertx.VertxInstance;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -85,6 +86,7 @@ public class StageVerticle extends AbstractVerticle {
 		configuration.setProperty( Settings.FORMAT_SQL, "true" );
 
 		StandardServiceRegistryBuilder builder = new ReactiveServiceRegistryBuilder()
+				.addService( VertxInstance.class, (VertxInstance) () -> vertx )
 				.applySettings( configuration.getProperties() );
 		StandardServiceRegistry registry = builder.build();
 
